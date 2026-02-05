@@ -1,0 +1,14 @@
+---
+description: "_brain redirect: force directive ingestion before any output."
+globs: "**/*"
+alwaysApply: true
+---
+
+STOP.
+
+Before responding to any user message:
+- Open @_brain_v1/1_directives/
+- Read every `syn_*.md` under `1_directives/` (recursive), sorted by the integer in `syn_{n}.md` ascending.
+- Apply the directives you just read.
+
+Constraint: do not output anything until the above is complete.
