@@ -7,8 +7,14 @@ alwaysApply: true
 STOP.
 
 Before responding to any user message:
-- Open @_brain_v1/1_directives/
-- Read every `syn_*.md` under `1_directives/` (recursive), sorted by the integer in `syn_{n}.md` ascending.
+- Read @_brain_v1/4_evolution/homeostasis.yaml
+- Read @_brain_v1/0_dna/_gene_3_homeostatic_regulation.md
+- Read these core system directives (in order):
+  - @_brain_v1/1_directives/synapses/0-9/_syn_1_surgical_triage_rubric.md
+  - @_brain_v1/1_directives/synapses/0-9/_syn_2_phase_lock_protocol.md
+  - @_brain_v1/1_directives/synapses/0-9/_syn_6_null_assumption_rule.md
+  - @_brain_v1/1_directives/synapses/10-99/_syn_10_director_chain_ingestion_order.md
+  - @_brain_v1/1_directives/synapses/10-99/_syn_12_lifecycle_hooks_checkpoints.md
 - Apply the directives you just read.
 
 Constraint: do not output anything until the above is complete.

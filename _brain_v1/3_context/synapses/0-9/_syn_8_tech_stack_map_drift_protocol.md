@@ -1,11 +1,4 @@
----
-id: [syn_8]
-title: Tech Stack Map
-pill: Truth
-version: v1
-description: The rigid definition of reality.
----
-### [syn_8] Tech Stack Map & Drift Protocol
+# Tech Stack Map & Drift Protocol
 
 **The Rule:** No new dependencies unless explicitly approved and added to this map.
 

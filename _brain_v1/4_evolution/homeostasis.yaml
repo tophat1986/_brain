@@ -1,0 +1,36 @@
+# THE HYPOTHALAMUS
+# Single source of truth for the Brain's current state.
+#
+# Rules:
+# - Do not edit manually unless a protocol explicitly instructs it.
+# - Update only after running a WBC scan.
+#
+# Scope note:
+# - This file describes the state of `_brain_v1` (the Brain layer), not the host repo codebase.
+
+schema_version: 1
+generated_at: "2026-02-06T19:22:42.3723690+00:00"
+
+scopes:
+  brain_md:
+    root: "_brain_v1"
+    include:
+      - "**/*.md"
+    exclude:
+      - "**/inf_*.md"
+  host_repo: null
+
+brain_vitals:
+  last_scan_at: "2026-02-06T19:22:42.3723690+00:00"
+  md_files: 17
+  md_lines: 194
+  md_bytes: 7527
+
+chemical_state:
+  inflammation: 0   # [0=clean, 1=bloated, 2=toxic]
+  cortisol: 0       # [0=calm, 1=focus, 2=stressed, 3=panic]
+  mode: rest_digest # [rest_digest, fight_flight, deep_focus]
+
+gates:
+  block_new_features: false
+  require_wbc: []
