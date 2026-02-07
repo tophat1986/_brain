@@ -1,0 +1,23 @@
+# _brain_v1/homeostasis.yaml
+# Desired operating intent (homeostatic policy / targets).
+# user/human-specified.
+# Maintained by the Director (via directives) on behalf of the user/human.
+# Treated as read-only by the agent during an active Brain session (no runtime mutation).
+#
+# If Cursor hooks are enabled in a host repo, they can generate `.cursor/cortex.yaml`
+# from this file and inject a cortex banner at `sessionStart`.
+
+MINDSET:
+  mode: "architect"   # architect | builder | janitor
+  caution: "high"     # low | medium | high
+  focus: "brain_evolution"
+
+REFLEXES:
+  motor: []
+  sensory:
+    - ".env"
+    - "secrets/**"
+  inhibition:
+    - "rm -rf"
+    - "drop database"
+

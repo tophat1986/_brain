@@ -1,5 +1,6 @@
-# THE HYPOTHALAMUS
-# Single source of truth for the Brain's current state.
+# VITALS
+# Current measured state (biomarkers / telemetry) for the Brain layer.
+# Machine-managed snapshot.
 #
 # Rules:
 # - Do not edit manually unless a protocol explicitly instructs it.
@@ -7,6 +8,7 @@
 #
 # Scope note:
 # - This file describes the state of `_brain_v1` (the Brain layer), not the host repo codebase.
+#
 
 schema_version: 1
 generated_at: "2026-02-06T19:22:42.3723690+00:00"
@@ -34,3 +36,4 @@ chemical_state:
 gates:
   block_new_features: false
   require_wbc: []
+

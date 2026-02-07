@@ -9,11 +9,11 @@ Run when asked for:
 ## Scope
 - Measure `_brain_v1` **Brain layer** only (not the host repo)
 - Use the scope definition at:
-  - `@_brain_v1/4_evolution/homeostasis.yaml` → `scopes.brain_md`
+  - `@_brain_v1/4_evolution/vitals.yaml` → `scopes.brain_md`
 
 ## Output
-Update the hypothalamus state:
-- `@_brain_v1/4_evolution/homeostasis.yaml`
+Update the vitals snapshot:
+- `@_brain_v1/4_evolution/vitals.yaml`
 
 Set (at minimum):
 - `generated_at` (ISO timestamp with time + offset)

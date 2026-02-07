@@ -1,18 +1,12 @@
-# Tech Stack Map & Drift Protocol
+# Tech Stack Drift Gate (Gene-backed)
 
-**The Rule:** No new dependencies unless explicitly approved and added to this map.
+**The Rule:** No new dependencies unless explicitly approved **and** reconciled against the Tech Stack Map (DNA).
 
-**Current Truth:**
-- **Core:** [User Defined Framework]
-- **State:** [User Defined State Management]
-- **Persistence:** [User Defined Database/ORM]
-- **Styling:** [User Defined Styling Engine]
-
-**Banned Patterns (The Anti-Map):**
-- [User Defined Banned Pattern 1]
-- [User Defined Banned Pattern 2]
+**Tech Stack Map (declared facts):**
+- **Source**: `@_brain_v1/0_dna/gene_4_tech_stack_map.md`
+- **Constraint**: Do **not** store tech stack values inside this `_syn_` file. This is the **protocol card**, not the storage location.
 
 **Drift Protocol:**
-1. Agent checks Dependency Manifest.
-2. If a package exists there but NOT here -> **HALT**.
-3. Trigger **Scribe**: Reconcile the map or remove the package.
+1. Agent checks the host repo dependency manifest(s).
+2. If a dependency exists there but is **not declared** in the Tech Stack Map -> **HALT**.
+3. Trigger **Scribe**: reconcile by updating the Tech Stack Map (or removing the dependency).

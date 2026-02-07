@@ -2,9 +2,12 @@
 
 ## Principle
 At the start of every session, the agent must read:
-- `@_brain_v1/4_evolution/homeostasis.yaml`
+- `@_brain_v1/homeostasis.yaml` (Intent)
+- `@_brain_v1/4_evolution/vitals.yaml` (Vitals)
 
-This state dictates **allowed actions**. The agent must obey the gates before planning or implementing.
+Homeostasis is the **desired operating intent** (targets/policy). Vitals are the **current measured state** (derived from WBC scans).
+
+The agent must obey the `gates` and chemical-state policies before planning or implementing.
 
 ## Chemical state interpretations
 

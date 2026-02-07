@@ -1,0 +1,8 @@
+# Cursor hook-generated machine state
+.cursor/cortex.yaml
+.cursor/synaptic_state.json
+
+# Cursor hooks are disabled in _brain (dev) repo.
+# Keep only `.cursor/hooks.example.json` checked in.
+.cursor/hooks.json
+

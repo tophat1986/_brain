@@ -15,13 +15,8 @@ The file tree **is** the index. If a filename doesn’t carry enough signal to j
   - `mem_` (Evolution / learned memory)
 - **ID**: integer, no leading zeros (e.g. `1`, `12`, `105`)
 - **Slug**: `snake_case` semantic keywords
-  - For synapses/protocols: **aim 3–5 keywords**
-  - For genes: **1–5 keywords**, but must still be high-signal
-- **Examples**:
-  - `_syn_12_lifecycle_hooks_checkpoints.md`
-  - `syn_45_auth_flow_decisions.md`
-  - `_gene_2_metabolic_efficiency.md`
-  - `_wbc_1_brain_loc_kpi_scan.md`
+  - Use **high-signal** intent so an agent can select files without opening them (token efficiency). Example: `_syn_12_dependency_drift_gate.md`
+
 
 ## Placement protocol
 - **DNA (Genes)**: `_brain_v1/0_dna/_gene_*.md` (shipped) and `_brain_v1/0_dna/gene_*.md` (user)
@@ -29,14 +24,20 @@ The file tree **is** the index. If a filename doesn’t carry enough signal to j
 - **User Synapses (project)**: `_brain_v1/**/synapses/**/syn_*.md`
 - **Magnitude sharding**: store synapses in numeric range buckets under `synapses/` (e.g. `0-9`, `10-99`, `100-999`) to avoid directory bloat.
 
+## Content placement (anti-drift)
+- **Synapses (`*_syn_*.md`, `syn_*.md`)**: protocol cards only. Do **not** store mutable project facts here (e.g. tech stack, code style).
+- **Genes (`gene_*.md`)**: declared project facts/constraints (_brain only)
+- **Memory (`mem_*.md`)**: learned, time-stamped observations (append-only).
+
 ## Frontmatter policy
 - Do **not** add YAML frontmatter to files in `_brain_v1/`.
 - Derive any “metadata” from the **path + filename**.
-- If a website needs extra labels/graph data later, generate it externally from the public repo.
+
 
 ## Singleton state files (allowed)
 Some state artifacts are intentionally not part of the `{prefix}{id}_{slug}.md` scheme:
-- `@_brain_v1/4_evolution/homeostasis.yaml`
+- `@_brain_v1/homeostasis.yaml`
+- `@_brain_v1/4_evolution/vitals.yaml`
 
 ## Link policy
 - Do not reference other synapses by `id` (avoid tight coupling + drift).
