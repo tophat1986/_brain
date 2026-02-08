@@ -5,29 +5,22 @@ The file tree **is** the index. If a filename doesn’t carry enough signal to j
 ## Naming protocol
 - **Format**: `{prefix}{id}_{slug}.md`
 - **Prefixes**:
-  - `_gene_` (DNA / shipped laws)
-  - `gene_` (DNA / user laws)
-  - `_syn_` (System / shipped synapses)
-  - `syn_` (User / project synapses)
-  - `_wbc_` (Immune protocol / shipped)
-  - `wbc_` (Immune protocol / user)
-  - `inf_` (Immune report / symptom)
-  - `mem_` (Evolution / learned memory)
+  - `_gene_` (DNA / shipped laws) - declared project facts/constraints (_brain only) - Read only by Director
+  - `_syn_` (System / shipped synapses) - Protocol cards only. Read only by Director. Only in folders: `1_directives` | `2_identity` | `3_context`
+  - `syn_` (User / project synapses) - Protocol cards only. Read only by Director. Only in folders: `1_directives` | `2_identity` | `3_context`
+  - `_wbc_` (Immune protocol / shipped) - Read only by Director. Always in folder = `3_context`
+   - `inf_` (Immune report / symptom) - Set by Director. Always in folder = `3_context`
+  - `mem_` (Evolution / learned memory) - time-stamped observations. Set by Director. Always in folder = `4_evolution`
 - **ID**: integer, no leading zeros (e.g. `1`, `12`, `105`)
 - **Slug**: `snake_case` semantic keywords
-  - Use **high-signal** intent so an agent can select files without opening them (token efficiency). Example: `_syn_12_dependency_drift_gate.md`
+  - Use **high-signal** intent so an agent can select files without opening them (token efficiency). 
 
 
 ## Placement protocol
-- **DNA (Genes)**: `_brain_v1/0_dna/_gene_*.md` (shipped) and `_brain_v1/0_dna/gene_*.md` (user)
-- **System Synapses (shipped)**: `_brain_v1/**/synapses/**/_syn_*.md`
-- **User Synapses (project)**: `_brain_v1/**/synapses/**/syn_*.md`
+- **DNA (Genes)**: `_brain_v1/0_dna/_gene_*.md` - Shipped read only. Cannot be added by Director or User.
+- **Synapses (System/Shipped)**: `_brain_v1/**/synapses/**/_syn_*.md`
+- **Synapses (User)**: `_brain_v1/**/synapses/**/syn_*.md`
 - **Magnitude sharding**: store synapses in numeric range buckets under `synapses/` (e.g. `0-9`, `10-99`, `100-999`) to avoid directory bloat.
-
-## Content placement (anti-drift)
-- **Synapses (`*_syn_*.md`, `syn_*.md`)**: protocol cards only. Do **not** store mutable project facts here (e.g. tech stack, code style).
-- **Genes (`gene_*.md`)**: declared project facts/constraints (_brain only)
-- **Memory (`mem_*.md`)**: learned, time-stamped observations (append-only).
 
 ## Frontmatter policy
 - Do **not** add YAML frontmatter to files in `_brain_v1/`.
