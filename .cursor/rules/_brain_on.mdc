@@ -13,6 +13,8 @@ Before responding to any user message:
 - Read these core system directives (in order):
   - @_brain_v1/1_directives/synapses/0-9/_syn_1_surgical_triage_rubric.md
   - @_brain_v1/1_directives/synapses/0-9/_syn_2_phase_lock_protocol.md
+  - @_brain_v1/1_directives/synapses/10-99/_syn_13_architecture_first_minimal_diff_no_duplication.md
+  - @_brain_v1/1_directives/synapses/10-99/_syn_14_subagent_delegation_protocol.md
   - @_brain_v1/1_directives/synapses/0-9/_syn_6_null_assumption_rule.md
   - @_brain_v1/1_directives/synapses/10-99/_syn_10_director_chain_ingestion_order.md
   - @_brain_v1/1_directives/synapses/10-99/_syn_12_lifecycle_hooks_checkpoints.md
