@@ -5,7 +5,8 @@ The file tree **is** the index. If a filename doesn’t carry enough signal to j
 ## Naming protocol
 - **Format**: `{prefix}{id}_{slug}.md`
 - **Prefixes**:
-  - `_gene_` (DNA / shipped laws) - declared project facts/constraints (_brain only) - Read only by Director
+  - `_gene_` (DNA / System / Shipped) - Brain-law files shipped with `_brain_v1`; read-only at runtime
+  - `gene_` (DNA / User) - user-authored Brain-law extensions/overrides; editable between sessions
   - `_syn_` (System / shipped synapses) - Protocol cards only. Read only by Director. Only in folders: `1_directives` | `2_identity` | `3_context`
   - `syn_` (User / project synapses) - Protocol cards only. Read only by Director. Only in folders: `1_directives` | `2_identity` | `3_context`
   - `_wbc_` (Immune protocol / shipped) - Read only by Director. Folder = `0_dna`
@@ -18,11 +19,17 @@ The file tree **is** the index. If a filename doesn’t carry enough signal to j
 
 
 ## Placement protocol
-- **DNA (Genes)**: `_brain_v1/0_dna/_gene_*.md` - Shipped read only. Cannot be added by Director or User.
+- **DNA (System/Shipped)**: `_brain_v1/0_dna/_gene_*.md` - shipped Brain laws; read-only at runtime.
+- **DNA (User)**: `_brain_v1/0_dna/gene_*.md` - user Brain-law extensions/overrides; editable between sessions.
 - **Immune (Shipped)**: `_brain_v1/0_dna/_wbc_*.md`
 - **Synapses (System/Shipped)**: `_brain_v1/**/synapses/**/_syn_*.md`
 - **Synapses (User)**: `_brain_v1/**/synapses/**/syn_*.md`
 - **Magnitude sharding**: store synapses in numeric range buckets under `synapses/` (e.g. `0-9`, `10-99`, `100-999`) to avoid directory bloat.
+
+## Scope guard (critical)
+- Genes define Brain governance only.
+- Do **not** store host-project runtime facts (e.g. tech stack inventory) in genes.
+- Store learned host-project facts in `@_brain_v1/4_evolution/mem_*.md`.
 
 ## Frontmatter policy
 - Do **not** add YAML frontmatter to files in `_brain_v1/`.

@@ -79,7 +79,8 @@ The Director acts as the project's long-term memory. It records key decisions in
 
 Every file in the brain follows a strict bio metaphorical naming convention to define its operational role.  The design mimics the human brain’s anatomy.
 
-A **Leading underscore (`_`)** means the file ships with `_brain_v1` (System).
+A **Leading underscore (`_`)** means the file ships with `_brain_v1` (System/Shipped).
+Terminology note: in this README, **System** and **Shipped** are synonymous.
 
 | **Component** | **Prefix** | **Naming Pattern (Schema)** | **Bio-Metaphor** | **Operational Role** | **Lifecycle & Source** |
 | --- | --- | --- | --- | --- | --- |
@@ -123,8 +124,10 @@ Machine-managed lock. |
 ## The Dual-Mind Model
 
 - **System vs User (global rule):**
-    - **Leading underscore (`_`)** means the file ships with `_brain_v1` (System). The leading underscore ensures these files float to the top of the folder structure, keeping "System" separate from "User."
+    - **Leading underscore (`_`)** means the file ships with `_brain_v1` (System/Shipped). The leading underscore ensures these files float to the top of the folder structure, keeping "System" separate from "User."
     - **No leading underscore** means the file is user/project state (User).
+    - **DNA split:** `_gene_*.md` = System/Shipped DNA. `gene_*.md` = User DNA extensions/overrides (Brain governance only).
+    - **Host-project runtime facts** (e.g., tech stack inventory) belong in `mem_*.md`, not DNA.
 - **`_syn_` (_brain Synapse):**
     - **Role:** Autonomic functions (breathing, heart rate). These are the basic system files shipped with `_brain`to allow a baseline level of intelligence to act on.
 - **`syn_` (User Synapses):**
@@ -147,8 +150,8 @@ The brain is organized into a foundational Core and four Functional Lobes.
 
 **`0_dna/` (The Laws):** Defines the "Self."
 
-- **File Type:** `_gene_*.md` (System)
-- **Role:** Immutable rules (e.g., naming conventions, file structure). Ensures _brain itself doesn’t rot. Governance and protocols followed to operate.
+- **File Type:** `_gene_*.md` (System/Shipped) and `gene_*.md` (User DNA)
+- **Role:** Brain-governance rules (e.g., naming conventions, file structure). Ensures _brain itself does not rot.
 - **Immune System:** Contains `_wbc_*.md` - “White Blood Cell” protocols for self-auditing.
 
 ### Specialised Lobes
@@ -205,11 +208,11 @@ The architecture is defined by four distinct biological components, each with a 
 
 ### DNA (The Laws)
 
-- **Prefix:** `_gene_` (System) / `gene_` (DNA of _Brain)
+- **Prefix:** `_gene_` (System/Shipped DNA) / `gene_` (User DNA extension)
 - **File Example:** `_gene_1_naming.md`
 - **Biological Role:** The fundamental, immutable genetic code.
 - **Operational Instruction:** "You must always use snake_case." "Never delete a file without an audit."
-- **Function:** Defines the hard constraints that cannot be violated.
+- **Function:** Defines hard constraints for Brain behavior (not host-project runtime facts).
 
 ### Synapses (The Protocol Cards)
 

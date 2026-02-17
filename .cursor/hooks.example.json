@@ -11,8 +11,6 @@
     "preToolUse": [
       { "command": "node .cursor/spinal_cord.js", "matcher": "Write", "timeout": 5 }
     ],
-    "afterFileEdit": [{ "command": "node .cursor/spinal_cord.js", "timeout": 5 }],
-
     "beforeShellExecution": [{ "command": "node .cursor/spinal_cord.js", "timeout": 5 }],
     "beforeMCPExecution": [{ "command": "node .cursor/spinal_cord.js", "timeout": 5 }]
   }
