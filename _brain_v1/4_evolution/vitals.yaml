@@ -11,7 +11,7 @@
 #
 
 schema_version: 1
-generated_at: "2026-02-06T19:22:42.3723690+00:00"
+generated_at: "2026-02-17T13:24:35.656Z"
 
 scopes:
   brain_md:
@@ -23,10 +23,10 @@ scopes:
   host_repo: null
 
 brain_vitals:
-  last_scan_at: "2026-02-06T19:22:42.3723690+00:00"
-  md_files: 17
-  md_lines: 194
-  md_bytes: 7527
+  last_scan_at: "2026-02-17T13:24:35.656Z"
+  md_files: 18
+  md_lines: 365
+  md_bytes: 14322
 
 chemical_state:
   inflammation: 0   # [0=clean, 1=bloated, 2=toxic]
@@ -36,4 +36,3 @@ chemical_state:
 gates:
   block_new_features: false
   require_wbc: []
-

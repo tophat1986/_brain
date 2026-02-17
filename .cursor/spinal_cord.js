@@ -1,18 +1,74 @@
 #!/usr/bin/env node
-/**
- * Cursor "Spinal Cord" hook handler (EXAMPLE).
- *
- * This repo is the _brain itself (building v1). Hooks are intentionally NOT enabled here.
- * To enable in a host repo, copy `.cursor/hooks.example.json` → `.cursor/hooks.json`.
- *
- * Receives hook input JSON via stdin and responds via stdout JSON.
- * Must be deterministic, fast, and dependency-free.
- */
 
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
+// Canonical relative paths used by the runtime checks.
+const BRAIN_ROOT = "_brain_v1";
+const HOMEOSTASIS_REL_PATH = normalizePathSep(path.join(BRAIN_ROOT, "homeostasis.yaml"));
+const VITALS_REL_PATH = normalizePathSep(path.join(BRAIN_ROOT, "4_evolution", "vitals.yaml"));
+
+// Minimal bootstrap set: if these are missing, the Brain layer is not fully wired.
+const REQUIRED_BOOTSTRAP_REL_PATHS = [
+  HOMEOSTASIS_REL_PATH,
+  VITALS_REL_PATH,
+  normalizePathSep(path.join(BRAIN_ROOT, "1_directives", "synapses", "0-9", "_syn_1_surgical_triage_rubric.md")),
+  normalizePathSep(path.join(BRAIN_ROOT, "1_directives", "synapses", "0-9", "_syn_2_phase_lock_protocol.md")),
+  normalizePathSep(path.join(BRAIN_ROOT, "1_directives", "synapses", "10-99", "_syn_10_director_chain_ingestion_order.md")),
+  normalizePathSep(path.join(BRAIN_ROOT, "2_identity", "synapses", "0-9", "_syn_7_core_values_pillars.md")),
+  normalizePathSep(path.join(BRAIN_ROOT, "3_context", "synapses", "0-9", "_syn_8_tech_stack_map_drift_protocol.md")),
+];
+
+// If vitals are older than this threshold, the runtime will warn once per session.
+const VITALS_STALE_DAYS = 7;
+
+// Prompt triage keyword sets (high-signal phrases only to keep false positives low).
+const TRIAGE_SKELETAL_KEYWORDS = [
+  "architecture",
+  "infrastructure",
+  "schema migration",
+  "database migration",
+  "new dependency",
+  "install package",
+  "upgrade dependency",
+  "downgrade dependency",
+  "ci pipeline",
+  "deployment pipeline",
+  "dockerfile",
+  "kubernetes",
+  "terraform",
+  "monorepo",
+  "build system",
+  "tsconfig",
+  "vite.config",
+  "webpack config",
+  "eslint config",
+  "auth flow",
+  "permissions model",
+  "api contract",
+  "cross-cutting",
+  "global config",
+];
+
+const TRIAGE_SURFACE_KEYWORDS = [
+  "typo",
+  "spelling",
+  "wording",
+  "copy edit",
+  "docs",
+  "documentation",
+  "readme",
+  "comment",
+  "formatting",
+  "lint fix",
+  "ui text",
+  "placeholder text",
+  "css color",
+  "style only",
+];
+
+// Reads raw hook payload from stdin. Cursor sends hook metadata as JSON text.
 function readStdin() {
   return new Promise((resolve) => {
     let data = "";
@@ -25,10 +81,12 @@ function readStdin() {
   });
 }
 
+// Hook handlers must return JSON to stdout. No logs/noise.
 function writeStdoutJson(obj) {
   process.stdout.write(JSON.stringify(obj ?? {}));
 }
 
+// Parse JSON defensively. Bad payloads should fail open, not crash hooks.
 function safeJsonParse(raw, fallback) {
   try {
     if (!raw || !raw.trim()) return fallback;
@@ -38,10 +96,12 @@ function safeJsonParse(raw, fallback) {
   }
 }
 
+// Stable digest used for cortex and state dedupe.
 function sha256Hex(text) {
   return crypto.createHash("sha256").update(text ?? "", "utf8").digest("hex");
 }
 
+// Tiny fs helpers kept dependency-free for fast hook execution.
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
@@ -73,6 +133,7 @@ function normalizePathSep(p) {
   return String(p ?? "").replace(/\\/g, "/");
 }
 
+// Resolve which workspace root owns _brain_v1 when multi-root workspaces are open.
 function resolveWorkspaceRoot(workspaceRoots) {
   if (Array.isArray(workspaceRoots)) {
     for (const root of workspaceRoots) {
@@ -84,6 +145,7 @@ function resolveWorkspaceRoot(workspaceRoots) {
   return process.cwd();
 }
 
+// Normalize a hook path to workspace-relative for pattern matching.
 function toRelPath(filePath, workspaceRoot) {
   if (!filePath || typeof filePath !== "string") return "";
 
@@ -94,6 +156,7 @@ function toRelPath(filePath, workspaceRoot) {
   return rel;
 }
 
+// Accept bare strings or quoted values from minimal YAML parsing.
 function stripWrappingQuotes(s) {
   const v = String(s ?? "").trim();
   if (!v) return v;
@@ -103,6 +166,142 @@ function stripWrappingQuotes(s) {
   return v;
 }
 
+// Remove trailing inline YAML comments in the shape: "value # comment".
+function stripYamlInlineComment(value) {
+  return String(value ?? "").split(/\s+#/)[0].trim();
+}
+
+function parseIntegerMaybe(value) {
+  const n = Number.parseInt(String(value ?? "").trim(), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseBooleanMaybe(value) {
+  const v = String(value ?? "").trim().toLowerCase();
+  if (v === "true") return true;
+  if (v === "false") return false;
+  return null;
+}
+
+function parseIsoToEpochMs(iso) {
+  if (!iso) return null;
+  const ms = Date.parse(String(iso));
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function computeAgeDays(isoTimestamp) {
+  const tsMs = parseIsoToEpochMs(isoTimestamp);
+  if (tsMs == null) return null;
+  const diffMs = Date.now() - tsMs;
+  if (!Number.isFinite(diffMs)) return null;
+  return Math.max(0, diffMs / (1000 * 60 * 60 * 24));
+}
+
+function normalizeForKeywordScan(text) {
+  return String(text ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function collectKeywordHits(normalizedPrompt, keywords) {
+  const hits = [];
+  for (const keyword of keywords) {
+    if (normalizedPrompt.includes(keyword)) hits.push(keyword);
+  }
+  return hits;
+}
+
+function tryCoercePromptText(value) {
+  if (typeof value === "string") {
+    const v = value.trim();
+    return v || null;
+  }
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((x) => (typeof x === "string" ? x.trim() : ""))
+      .filter(Boolean);
+    return parts.length > 0 ? parts.join("\n") : null;
+  }
+
+  if (value && typeof value === "object") {
+    const objectCandidates = ["text", "content", "prompt", "message", "input"];
+    for (const key of objectCandidates) {
+      const nested = tryCoercePromptText(value[key]);
+      if (nested) return nested;
+    }
+  }
+
+  return null;
+}
+
+function extractPromptTextFromHookInput(input) {
+  const directCandidates = [
+    "prompt",
+    "text",
+    "message",
+    "user_message",
+    "user_prompt",
+    "submitted_prompt",
+    "current_prompt",
+  ];
+  for (const key of directCandidates) {
+    const text = tryCoercePromptText(input?.[key]);
+    if (text) return text;
+  }
+
+  const nestedContainers = ["payload", "request", "data", "tool_input"];
+  for (const key of nestedContainers) {
+    const text = tryCoercePromptText(input?.[key]);
+    if (text) return text;
+  }
+
+  return null;
+}
+
+function classifyPromptTriage(input) {
+  const promptText = extractPromptTextFromHookInput(input);
+  if (!promptText) {
+    return {
+      grade: "B",
+      layer: "muscle",
+      promptAvailable: false,
+      reason: "prompt_unavailable",
+      hits: [],
+    };
+  }
+
+  const normalized = normalizeForKeywordScan(promptText);
+  const skeletalHits = collectKeywordHits(normalized, TRIAGE_SKELETAL_KEYWORDS);
+  if (skeletalHits.length > 0) {
+    return {
+      grade: "A",
+      layer: "skeletal",
+      promptAvailable: true,
+      reason: `skeletal_signals:${skeletalHits.slice(0, 3).join("|")}`,
+      hits: skeletalHits,
+    };
+  }
+
+  const surfaceHits = collectKeywordHits(normalized, TRIAGE_SURFACE_KEYWORDS);
+  if (surfaceHits.length > 0) {
+    return {
+      grade: "C",
+      layer: "surface",
+      promptAvailable: true,
+      reason: `surface_signals:${surfaceHits.slice(0, 3).join("|")}`,
+      hits: surfaceHits,
+    };
+  }
+
+  return {
+    grade: "B",
+    layer: "muscle",
+    promptAvailable: true,
+    reason: "default_logic_scope",
+    hits: [],
+  };
+}
+
+// Lightweight, purpose-built parser for the current homeostasis schema.
 function parseHomeostasisYaml(text) {
   const result = {
     mindset: { mode: null, caution: null, focus: null },
@@ -134,8 +333,8 @@ function parseHomeostasisYaml(text) {
       const m = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.+)?$/);
       if (!m) continue;
       const key = m[1];
-      const valueRaw = String(m[2] ?? "").trim();
-      const valueNoComment = valueRaw.split(/\s+#/)[0].trim();
+      const valueRaw = stripYamlInlineComment(String(m[2] ?? "").trim());
+      const valueNoComment = valueRaw.trim();
       const value = stripWrappingQuotes(valueNoComment);
       if (key === "mode" || key === "caution" || key === "focus") {
         result.mindset[key] = value || null;
@@ -158,11 +357,93 @@ function parseHomeostasisYaml(text) {
 
       const itemMatch = trimmed.match(/^-+\s*(.+)\s*$/);
       if (itemMatch && reflexKey) {
-        const itemRaw = String(itemMatch[1] ?? "").trim();
-        const itemNoComment = itemRaw.split(/\s+#/)[0].trim();
+        const itemRaw = stripYamlInlineComment(String(itemMatch[1] ?? "").trim());
+        const itemNoComment = itemRaw.trim();
         const item = stripWrappingQuotes(itemNoComment);
         if (item) result.reflexes[reflexKey].push(item);
       }
+    }
+  }
+
+  return result;
+}
+
+// Lightweight parser for vitals fields needed by runtime policy decisions.
+function parseVitalsYaml(text) {
+  const result = {
+    generatedAt: null,
+    brainVitals: { lastScanAt: null, mdFiles: null, mdLines: null, mdBytes: null },
+    chemicalState: { inflammation: null, cortisol: null, mode: null },
+    gates: { blockNewFeatures: null, requireWbc: [] },
+  };
+
+  const lines = String(text ?? "").split(/\r?\n/);
+  let section = null;
+  let listKey = null;
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\t/g, "    ");
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    const indent = (line.match(/^ */) || [""])[0].length;
+
+    // Top-level keys: either "section:" or scalar "key: value".
+    if (indent === 0) {
+      listKey = null;
+      const m = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$/);
+      if (!m) continue;
+      const key = m[1];
+      const rest = stripYamlInlineComment(String(m[2] ?? "").trim());
+      if (!rest) {
+        section = key;
+        continue;
+      }
+      section = null;
+      if (key === "generated_at") result.generatedAt = stripWrappingQuotes(rest);
+      continue;
+    }
+
+    // Section-level keys under a top-level block.
+    if (indent === 2) {
+      const m = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$/);
+      if (!m) continue;
+      const key = m[1];
+      const rest = stripYamlInlineComment(String(m[2] ?? "").trim());
+      listKey = null;
+
+      if (section === "brain_vitals") {
+        if (key === "last_scan_at") result.brainVitals.lastScanAt = stripWrappingQuotes(rest);
+        if (key === "md_files") result.brainVitals.mdFiles = parseIntegerMaybe(rest);
+        if (key === "md_lines") result.brainVitals.mdLines = parseIntegerMaybe(rest);
+        if (key === "md_bytes") result.brainVitals.mdBytes = parseIntegerMaybe(rest);
+        continue;
+      }
+
+      if (section === "chemical_state") {
+        if (key === "inflammation") result.chemicalState.inflammation = parseIntegerMaybe(rest);
+        if (key === "cortisol") result.chemicalState.cortisol = parseIntegerMaybe(rest);
+        if (key === "mode") result.chemicalState.mode = stripWrappingQuotes(rest) || null;
+        continue;
+      }
+
+      if (section === "gates") {
+        if (key === "block_new_features") result.gates.blockNewFeatures = parseBooleanMaybe(rest);
+        if (key === "require_wbc") {
+          listKey = "require_wbc";
+          result.gates.requireWbc = rest === "[]" ? [] : result.gates.requireWbc;
+        }
+      }
+      continue;
+    }
+
+    // List items under gates.require_wbc.
+    if (indent >= 4 && section === "gates" && listKey === "require_wbc") {
+      const itemMatch = trimmed.match(/^-+\s*(.+)\s*$/);
+      if (!itemMatch) continue;
+      const raw = stripYamlInlineComment(String(itemMatch[1] ?? "").trim());
+      const item = stripWrappingQuotes(raw);
+      if (item) result.gates.requireWbc.push(item);
     }
   }
 
@@ -229,9 +510,18 @@ function matchesCommandPattern(command, pattern) {
   return cmd.toLowerCase().includes(pat.toLowerCase());
 }
 
-function buildCortexYaml({ mindset, reflexes, hash }) {
+function compactList(items) {
+  const arr = Array.isArray(items) ? items : [];
+  if (arr.length === 0) return "[]";
+  return `[${arr.map((x) => JSON.stringify(String(x))).join(", ")}]`;
+}
+
+// Persisted cortex digest consumed as compact context in later session operations.
+function buildCortexYaml({ mindset, reflexes, hash, pulse }) {
   const m = mindset ?? {};
   const r = reflexes ?? {};
+  const p = pulse ?? {};
+  const v = p.vitals ?? {};
 
   const mindsetLine = [
     `mode: ${JSON.stringify(m.mode ?? "")}`,
@@ -248,43 +538,169 @@ function buildCortexYaml({ mindset, reflexes, hash }) {
   return [
     "# AUTO-GENERATED - DO NOT EDIT",
     "# Source: _brain_v1/homeostasis.yaml",
+    `workspace_root: ${JSON.stringify(p.workspaceRoot ?? "")}`,
     `MINDSET: { ${mindsetLine} }`,
     "REFLEXES:",
     `  motor:${listBlock(r.motor)}`,
     `  sensory:${listBlock(r.sensory)}`,
     `  inhibition:${listBlock(r.inhibition)}`,
+    `VITALS: { generated_at: ${JSON.stringify(v.generatedAt ?? "")}, age_days: ${JSON.stringify(v.ageDaysLabel ?? "unknown")}, inflammation: ${JSON.stringify(v.inflammation ?? "unknown")}, cortisol: ${JSON.stringify(v.cortisol ?? "unknown")}, mode: ${JSON.stringify(v.mode ?? "unknown")} }`,
+    `GATES: { block_new_features: ${JSON.stringify(v.blockNewFeatures ?? "unknown")}, require_wbc: ${compactList(v.requireWbc)} }`,
+    `BOOTSTRAP: { missing_core_files: ${compactList(p.missingCoreFiles)} }`,
+    `ALERTS: ${compactList(p.alerts)}`,
     'INSTINCT: "Motor reflex denies writes. Sensory reflex denies reads. Inhibition denies shell/MCP."',
     `HASH: ${JSON.stringify(hash)}`,
     "",
   ].join("\n");
 }
 
-function buildAdditionalContext({ mindset, reflexes, hash }) {
+function buildAdditionalContext({ mindset, reflexes, hash, pulse }) {
   const m = mindset ?? {};
   const r = reflexes ?? {};
-
-  const compactList = (items) => {
-    const arr = Array.isArray(items) ? items : [];
-    if (arr.length === 0) return "[]";
-    return `[${arr.map((x) => JSON.stringify(String(x))).join(", ")}]`;
-  };
+  const p = pulse ?? {};
+  const v = p.vitals ?? {};
 
   return [
     "_brain cortex (auto-injected by Cursor hooks)",
     `source: _brain_v1/homeostasis.yaml`,
+    `workspace_root: ${p.workspaceRoot ?? ""}`,
     `hash: ${hash}`,
     `MINDSET: { mode: ${JSON.stringify(m.mode ?? "")}, caution: ${JSON.stringify(m.caution ?? "")}, focus: ${JSON.stringify(m.focus ?? "")} }`,
     `REFLEXES: { sensory: ${compactList(r.sensory)}, motor: ${compactList(r.motor)}, inhibition: ${compactList(r.inhibition)} }`,
+    `VITALS: { generated_at: ${JSON.stringify(v.generatedAt ?? "")}, age_days: ${JSON.stringify(v.ageDaysLabel ?? "unknown")}, inflammation: ${JSON.stringify(v.inflammation ?? "unknown")}, cortisol: ${JSON.stringify(v.cortisol ?? "unknown")}, mode: ${JSON.stringify(v.mode ?? "unknown")} }`,
+    `GATES: { block_new_features: ${JSON.stringify(v.blockNewFeatures ?? "unknown")}, require_wbc: ${compactList(v.requireWbc)} }`,
+    `BOOTSTRAP: { missing_core_files: ${compactList(p.missingCoreFiles)} }`,
+    `ALERTS: ${compactList(p.alerts)}`,
     "INSTINCT: sensory=blindness (deny read), motor=withdrawal (deny write), inhibition=deny shell/MCP",
   ].join("\n");
 }
 
+function buildTriageAdditionalContext(triage) {
+  const t = triage ?? {};
+  const phase = t.grade === "A" ? "ARCHITECT_LOCK" : "SURGEON_ELIGIBLE";
+  return [
+    "_brain triage",
+    `TRIAGE: { grade: ${JSON.stringify(t.grade ?? "B")}, layer: ${JSON.stringify(t.layer ?? "muscle")}, reason: ${JSON.stringify(t.reason ?? "unknown")}, phase: ${JSON.stringify(phase)} }`,
+    `TRIAGE_MATCHES: ${compactList(t.hits)}`,
+  ].join("\n");
+}
+
+function appendAdditionalContext(existing, extra) {
+  if (!extra) return existing ?? "";
+  if (!existing) return extra;
+  return `${existing}\n${extra}`;
+}
+
+function appendUserMessage(out, message) {
+  if (!message) return;
+  if (!out.user_message) {
+    out.user_message = message;
+    return;
+  }
+  out.user_message = `${out.user_message}\n${message}`;
+}
+
 function loadHomeostasis(workspaceRoot) {
-  const homeostasisPath = path.join(workspaceRoot, "_brain_v1", "homeostasis.yaml");
-  const raw = readUtf8IfExists(homeostasisPath) ?? "";
-  const hash = sha256Hex(raw);
-  const parsed = parseHomeostasisYaml(raw);
-  return { homeostasisPath, raw, hash, parsed };
+  const homeostasisPath = path.join(workspaceRoot, HOMEOSTASIS_REL_PATH);
+  const rawOrNull = readUtf8IfExists(homeostasisPath);
+  const raw = rawOrNull ?? "";
+  return {
+    homeostasisPath,
+    exists: rawOrNull != null,
+    raw,
+    hash: sha256Hex(raw),
+    parsed: parseHomeostasisYaml(raw),
+  };
+}
+
+function loadVitals(workspaceRoot) {
+  const vitalsPath = path.join(workspaceRoot, VITALS_REL_PATH);
+  const rawOrNull = readUtf8IfExists(vitalsPath);
+  const raw = rawOrNull ?? "";
+  return {
+    vitalsPath,
+    exists: rawOrNull != null,
+    raw,
+    parsed: parseVitalsYaml(raw),
+  };
+}
+
+function getBootstrapStatus(workspaceRoot) {
+  const missing = [];
+  for (const rel of REQUIRED_BOOTSTRAP_REL_PATHS) {
+    const abs = path.join(workspaceRoot, rel);
+    if (!fileExists(abs)) missing.push(rel);
+  }
+  return { required: REQUIRED_BOOTSTRAP_REL_PATHS, missing };
+}
+
+function buildPulseSnapshot({ workspaceRoot, homeostasis, vitals }) {
+  const mindset = homeostasis?.parsed?.mindset ?? {};
+  const reflexes = homeostasis?.parsed?.reflexes ?? {};
+  const vitalsParsed = vitals?.parsed ?? {};
+  const chemical = vitalsParsed.chemicalState ?? {};
+  const gates = vitalsParsed.gates ?? {};
+  const bootstrap = getBootstrapStatus(workspaceRoot);
+
+  const sensoryCount = Array.isArray(reflexes.sensory) ? reflexes.sensory.length : 0;
+  const motorCount = Array.isArray(reflexes.motor) ? reflexes.motor.length : 0;
+  const inhibitionCount = Array.isArray(reflexes.inhibition) ? reflexes.inhibition.length : 0;
+  const vitalsAgeDays = computeAgeDays(vitalsParsed.generatedAt);
+
+  const alerts = [];
+  if (!homeostasis.exists) alerts.push("homeostasis_missing");
+  if (!vitals.exists) alerts.push("vitals_missing");
+  if (bootstrap.missing.length > 0) alerts.push(`missing_core_files:${bootstrap.missing.length}`);
+
+  if (vitalsAgeDays != null && vitalsAgeDays > VITALS_STALE_DAYS) {
+    alerts.push(`vitals_stale:${vitalsAgeDays.toFixed(1)}d`);
+  }
+
+  if (gates.blockNewFeatures === true) alerts.push("gate:block_new_features=true");
+  if (Array.isArray(gates.requireWbc) && gates.requireWbc.length > 0) {
+    alerts.push(`gate:require_wbc:${gates.requireWbc.length}`);
+  }
+
+  if (Number.isInteger(chemical.inflammation) && chemical.inflammation >= 1) {
+    alerts.push(`inflammation:${chemical.inflammation}`);
+  }
+  if (Number.isInteger(chemical.cortisol) && chemical.cortisol >= 2) {
+    alerts.push(`cortisol:${chemical.cortisol}`);
+  }
+
+  const vitalsAgeDaysLabel = vitalsAgeDays == null ? "unknown" : vitalsAgeDays.toFixed(1);
+  const oneLine = [
+    "_brain pulse",
+    `mode=${mindset.mode ?? "unknown"}`,
+    `caution=${mindset.caution ?? "unknown"}`,
+    `focus=${mindset.focus ?? "unknown"}`,
+    `inflammation=${chemical.inflammation ?? "unknown"}`,
+    `cortisol=${chemical.cortisol ?? "unknown"}`,
+    `block_new_features=${gates.blockNewFeatures ?? "unknown"}`,
+    `reflexes(s/m/i)=${sensoryCount}/${motorCount}/${inhibitionCount}`,
+    `vitals_age_days=${vitalsAgeDaysLabel}`,
+  ].join(" | ");
+
+  const attentionMessage = alerts.length > 0 ? `BRAIN ATTENTION: ${alerts.join(" | ")}` : null;
+  const attentionHash = alerts.length > 0 ? sha256Hex(alerts.join("|")) : null;
+
+  return {
+    workspaceRoot,
+    oneLine,
+    attentionMessage,
+    attentionHash,
+    alerts,
+    missingCoreFiles: bootstrap.missing,
+    vitals: {
+      generatedAt: vitalsParsed.generatedAt ?? null,
+      ageDaysLabel: vitalsAgeDaysLabel,
+      inflammation: chemical.inflammation,
+      cortisol: chemical.cortisol,
+      mode: chemical.mode ?? null,
+      blockNewFeatures: gates.blockNewFeatures,
+      requireWbc: Array.isArray(gates.requireWbc) ? gates.requireWbc : [],
+    },
+  };
 }
 
 function loadSynapticState(workspaceRoot) {
@@ -299,38 +715,95 @@ function saveSynapticState(statePath, value) {
   writeUtf8(statePath, payload);
 }
 
+// Keeps .cursor/cortex.yaml and .cursor/synaptic_state.json in sync with homeostasis changes.
 function updateCortexAndState({ workspaceRoot, sessionId }) {
-  const { parsed, hash } = loadHomeostasis(workspaceRoot);
+  const homeostasis = loadHomeostasis(workspaceRoot);
+  const vitals = loadVitals(workspaceRoot);
+  const pulse = buildPulseSnapshot({ workspaceRoot, homeostasis, vitals });
 
   const cortexPath = path.join(workspaceRoot, ".cursor", "cortex.yaml");
   const syn = loadSynapticState(workspaceRoot);
-  const prev = syn.value;
+  const prev = syn.value && typeof syn.value === "object" ? syn.value : {};
 
   const nowEpochSec = Math.floor(Date.now() / 1000);
   const nextState = {
+    ...prev,
     session_id: sessionId ?? null,
-    last_injected_hash: hash,
+    last_injected_hash: homeostasis.hash,
     last_check_timestamp: nowEpochSec,
   };
 
   const needsUpdate =
-    !prev ||
+    !prev.last_injected_hash ||
     prev.session_id !== nextState.session_id ||
     prev.last_injected_hash !== nextState.last_injected_hash;
 
   if (needsUpdate) {
-    writeUtf8(cortexPath, buildCortexYaml({ mindset: parsed.mindset, reflexes: parsed.reflexes, hash }));
+    writeUtf8(
+      cortexPath,
+      buildCortexYaml({
+        mindset: homeostasis.parsed.mindset,
+        reflexes: homeostasis.parsed.reflexes,
+        hash: homeostasis.hash,
+        pulse,
+      }),
+    );
     saveSynapticState(syn.path, nextState);
   } else {
     // Still update timestamp to prove liveness, but don't churn cortex.
-    saveSynapticState(syn.path, { ...prev, last_check_timestamp: nowEpochSec });
+    saveSynapticState(syn.path, nextState);
   }
 
-  return { hash, parsed, needsUpdate };
+  return { homeostasis, vitals, pulse, needsUpdate, statePath: syn.path, state: nextState };
+}
+
+function shouldEmitNoticeOncePerSession({
+  workspaceRoot,
+  sessionId,
+  noticeHash,
+  hashField,
+  sessionField,
+}) {
+  if (!noticeHash || !hashField || !sessionField) return false;
+  const syn = loadSynapticState(workspaceRoot);
+  const prev = syn.value && typeof syn.value === "object" ? syn.value : {};
+  const normalizedSessionId = sessionId ?? null;
+  const alreadySent = prev[hashField] === noticeHash && prev[sessionField] === normalizedSessionId;
+
+  if (alreadySent) return false;
+
+  saveSynapticState(syn.path, {
+    ...prev,
+    [hashField]: noticeHash,
+    [sessionField]: normalizedSessionId,
+    last_check_timestamp: Math.floor(Date.now() / 1000),
+  });
+
+  return true;
+}
+
+function shouldEmitAttentionOncePerSession({ workspaceRoot, sessionId, attentionHash }) {
+  return shouldEmitNoticeOncePerSession({
+    workspaceRoot,
+    sessionId,
+    noticeHash: attentionHash,
+    hashField: "last_attention_notice_hash",
+    sessionField: "last_attention_notice_session_id",
+  });
+}
+
+function shouldEmitTriageNoticeOncePerSession({ workspaceRoot, sessionId, triageHash }) {
+  return shouldEmitNoticeOncePerSession({
+    workspaceRoot,
+    sessionId,
+    noticeHash: triageHash,
+    hashField: "last_triage_notice_hash",
+    sessionField: "last_triage_notice_session_id",
+  });
 }
 
 function getReflexes(workspaceRoot) {
-  return loadHomeostasis(workspaceRoot).parsed.reflexes;
+  return loadHomeostasis(workspaceRoot).parsed.reflexes ?? { motor: [], sensory: [], inhibition: [] };
 }
 
 function extractFilePathFromToolInput(toolInput) {
@@ -345,28 +818,82 @@ function extractFilePathFromToolInput(toolInput) {
 
 function handleSessionStart(input, workspaceRoot) {
   const sessionId = input.session_id || input.conversation_id || null;
-  const { hash, parsed, needsUpdate } = updateCortexAndState({ workspaceRoot, sessionId });
+  const { homeostasis, pulse } = updateCortexAndState({ workspaceRoot, sessionId });
 
   const out = {
     continue: true,
     env: {
-      BRAIN_HOMEOSTASIS_HASH: hash,
-      BRAIN_HOMEOSTASIS_PATH: path.join(workspaceRoot, "_brain_v1", "homeostasis.yaml"),
+      BRAIN_HOMEOSTASIS_HASH: homeostasis.hash,
+      BRAIN_HOMEOSTASIS_PATH: path.join(workspaceRoot, HOMEOSTASIS_REL_PATH),
       BRAIN_CORTEX_PATH: path.join(workspaceRoot, ".cursor", "cortex.yaml"),
+      BRAIN_VITALS_PATH: path.join(workspaceRoot, VITALS_REL_PATH),
     },
+    user_message: pulse.oneLine,
   };
 
-  if (needsUpdate) {
-    out.additional_context = buildAdditionalContext({ mindset: parsed.mindset, reflexes: parsed.reflexes, hash });
-  }
+  out.additional_context = buildAdditionalContext({
+    mindset: homeostasis.parsed.mindset,
+    reflexes: homeostasis.parsed.reflexes,
+    hash: homeostasis.hash,
+    pulse,
+  });
 
   return out;
 }
 
 function handleBeforeSubmitPrompt(input, workspaceRoot) {
   const sessionId = input.conversation_id || null;
-  updateCortexAndState({ workspaceRoot, sessionId });
-  return { continue: true };
+  const { homeostasis, pulse, needsUpdate } = updateCortexAndState({ workspaceRoot, sessionId });
+  const out = { continue: true };
+  const triage = classifyPromptTriage(input);
+
+  // If homeostasis changed mid-session, refresh context once with the new digest.
+  if (needsUpdate) {
+    out.additional_context = buildAdditionalContext({
+      mindset: homeostasis.parsed.mindset,
+      reflexes: homeostasis.parsed.reflexes,
+      hash: homeostasis.hash,
+      pulse,
+    });
+  }
+
+  // Add a compact triage line when prompt payload is available.
+  if (triage.promptAvailable) {
+    out.additional_context = appendAdditionalContext(out.additional_context, buildTriageAdditionalContext(triage));
+  }
+
+  // Emit attention notices only once per session for the same alert set.
+  if (
+    pulse.attentionMessage &&
+    shouldEmitAttentionOncePerSession({
+      workspaceRoot,
+      sessionId,
+      attentionHash: pulse.attentionHash,
+    })
+  ) {
+    appendUserMessage(out, pulse.attentionMessage);
+  }
+
+  // Surface skeletal triage only once per session for the same reason set.
+  if (triage.grade === "A") {
+    const triageHash = sha256Hex(`${triage.grade}|${triage.reason}|${(triage.hits ?? []).join("|")}`);
+    if (
+      shouldEmitTriageNoticeOncePerSession({
+        workspaceRoot,
+        sessionId,
+        triageHash,
+      })
+    ) {
+      const topSignals = (triage.hits ?? []).slice(0, 3).join(", ");
+      const msg =
+        topSignals.length > 0
+          ? `BRAIN TRIAGE: Grade A (skeletal) -> PHASE ARCHITECT. Signals: ${topSignals}`
+          : "BRAIN TRIAGE: Grade A (skeletal) -> PHASE ARCHITECT.";
+      appendUserMessage(out, msg);
+    }
+  }
+
+  return out;
 }
 
 function handlePreCompact(_input, workspaceRoot) {
@@ -374,10 +901,12 @@ function handlePreCompact(_input, workspaceRoot) {
   const cortex = readUtf8IfExists(cortexPath);
   if (!cortex) return {};
   return {
-    user_message: "Context compaction: _brain cortex exists. If you changed `_brain_v1/homeostasis.yaml`, start a new chat to re-inject cortex.",
+    user_message:
+      "Context compaction: _brain cortex exists. If you changed `_brain_v1/homeostasis.yaml` or `_brain_v1/4_evolution/vitals.yaml`, start a new chat to re-inject cortex.",
   };
 }
 
+// Sensory reflex: deny reads that match protected paths.
 function handleBeforeReadFile(input, workspaceRoot) {
   const filePath = input.file_path;
   const rel = toRelPath(filePath, workspaceRoot);
@@ -392,6 +921,7 @@ function handleBeforeReadFile(input, workspaceRoot) {
   return { permission: "allow" };
 }
 
+// Motor reflex: deny write tool operations before mutation happens.
 function handlePreToolUse(input, workspaceRoot) {
   const toolName = input.tool_name;
   if (toolName !== "Write") return { decision: "allow" };
@@ -420,6 +950,7 @@ function replaceOnce(haystack, needle, replacement) {
   return haystack.slice(0, idx) + replacement + haystack.slice(idx + needle.length);
 }
 
+// Motor fallback: if a protected file was edited, attempt a best-effort rollback.
 function handleAfterFileEdit(input, workspaceRoot) {
   const filePath = input.file_path;
   if (!filePath) return {};
@@ -458,6 +989,7 @@ function handleAfterFileEdit(input, workspaceRoot) {
   return {};
 }
 
+// Inhibition reflex: deny risky shell commands by pattern.
 function handleBeforeShellExecution(input, workspaceRoot) {
   const cmd = input.command ?? "";
   const { inhibition } = getReflexes(workspaceRoot);
@@ -475,6 +1007,7 @@ function handleBeforeShellExecution(input, workspaceRoot) {
   return { permission: "allow" };
 }
 
+// Inhibition reflex for MCP calls: inspect tool metadata and deny risky patterns.
 function handleBeforeMcpExecution(input, workspaceRoot) {
   const haystack = [
     input.tool_name,
@@ -508,6 +1041,7 @@ async function main() {
   const event = input.hook_event_name || "";
 
   try {
+    // Dispatch by hook event. Each handler returns the event-specific JSON contract.
     switch (event) {
       case "sessionStart":
         writeStdoutJson(handleSessionStart(input, workspaceRoot));

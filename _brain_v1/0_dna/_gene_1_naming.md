@@ -8,8 +8,9 @@ The file tree **is** the index. If a filename doesn’t carry enough signal to j
   - `_gene_` (DNA / shipped laws) - declared project facts/constraints (_brain only) - Read only by Director
   - `_syn_` (System / shipped synapses) - Protocol cards only. Read only by Director. Only in folders: `1_directives` | `2_identity` | `3_context`
   - `syn_` (User / project synapses) - Protocol cards only. Read only by Director. Only in folders: `1_directives` | `2_identity` | `3_context`
-  - `_wbc_` (Immune protocol / shipped) - Read only by Director. Always in folder = `3_context`
-   - `inf_` (Immune report / symptom) - Set by Director. Always in folder = `3_context`
+  - `_wbc_` (Immune protocol / shipped) - Read only by Director. Folder = `0_dna`
+  - `wbc_` (Immune protocol / user) - Read only by Director. Prefer folder = `3_context`
+  - `inf_` (Immune report / symptom) - Set by Director. Prefer folder = `4_evolution`
   - `mem_` (Evolution / learned memory) - time-stamped observations. Set by Director. Always in folder = `4_evolution`
 - **ID**: integer, no leading zeros (e.g. `1`, `12`, `105`)
 - **Slug**: `snake_case` semantic keywords
@@ -18,6 +19,7 @@ The file tree **is** the index. If a filename doesn’t carry enough signal to j
 
 ## Placement protocol
 - **DNA (Genes)**: `_brain_v1/0_dna/_gene_*.md` - Shipped read only. Cannot be added by Director or User.
+- **Immune (Shipped)**: `_brain_v1/0_dna/_wbc_*.md`
 - **Synapses (System/Shipped)**: `_brain_v1/**/synapses/**/_syn_*.md`
 - **Synapses (User)**: `_brain_v1/**/synapses/**/syn_*.md`
 - **Magnitude sharding**: store synapses in numeric range buckets under `synapses/` (e.g. `0-9`, `10-99`, `100-999`) to avoid directory bloat.
